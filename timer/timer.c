@@ -204,7 +204,9 @@ timer_frame( libspectrum_dword last_tstates, int event GCC_UNUSED,
 	     void *user_data GCC_UNUSED )
 {
   double current_time, difference;
-  long tstates;
+  /* Perform tstates calculation as float to avoid overflow.
+     Accuracy not critical for this housekeeping activity. */
+  float tstates;
 
   if( sound_enabled && settings_current.sound ) {
     timer_frame_callback_sound( last_tstates );
@@ -246,8 +248,16 @@ timer_frame( libspectrum_dword last_tstates, int event GCC_UNUSED,
     tstates = ( ( difference + TEN_MS / 1000.0 ) *
 		machine_current->timings.processor_speed
 		) * speed + 0.5;
-  
-    event_add( last_tstates + tstates, timer_event );
+
+    /* Avoid potential overflows.
+       Limiting max value to ((1<<31) - 1) ensures tstates is also
+       within int32 range, not only libspectrum_dword range (uint32).
+       This further reduces chance of overflows elsewhere in code. */
+    if (last_tstates + tstates < 1<<31) {
+      event_add( last_tstates + tstates, timer_event );
+    } else {
+      event_add( (1<<31) - 1, timer_event );
+    }
 
     start_time = current_time + TEN_MS / 1000.0;
   }
