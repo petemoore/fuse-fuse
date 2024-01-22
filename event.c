@@ -83,15 +83,17 @@ event_register( event_fn_t fn, const char *description )
 static gint
 event_add_cmp( gconstpointer a1, gconstpointer b1 )
 {
+  /* Since the return type of this function is int32, and a->tstates and
+     b->tstates are uint32, expression (a->tstates - b->tstates) may overflow
+     int32 and therefore isn't a suitable GCompareFunc. */
   const event_t *a = a1, *b = b1;
-  /* (a->tstates - b->tstates) although usually sufficient as a GCompareFunc,
-     can overflow for high values of b->tstates. High values can occur in e.g.
-     timer events when fuse is run with --speed <very high number>. This
-     overflow can cause a crash if it pushes a spectrum frame event beyond a
-     distant timer event. Therefore use overflow safe variation
-     (a->tstates > b->tstates) - (a->tstates < b->tstates) instead. */
-  return a->tstates != b->tstates ? (a->tstates > b->tstates) - (a->tstates < b->tstates)
-		                  : a->type - b->type;
+  if (a->tstates > b->tstates) {
+    return 1;
+  } else if (a->tstates < b->tstates) {
+    return -1;
+  } else {
+    return a->type - b->type;
+  }
 }
 
 /* Add an event at the correct place in the event list */
